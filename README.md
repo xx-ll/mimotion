@@ -261,10 +261,13 @@ python3 -m venv venv
 
 激活虚拟环境
 ```shell
-# Windows
-./venv/Script/Activate
+# Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
 
-# Linux
+# Windows (cmd)
+venv\Scripts\activate.bat
+
+# Linux/macOS
 source ./venv/bin/activate
 ```
 
