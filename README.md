@@ -107,7 +107,7 @@
   | PUSH_WECHAT_WEBHOOK_KEY | 企业微信推送通知的key，企业微信webhook机器人推送全地址为：https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={机器人的key}，这里配置{机器人的key}（旧方案） |
   | WECOM_SMART_BOT_ID      | 企业微信智能机器人（新方案，长连接主动推送）的 BotID，参考文档：https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21661 |
   | WECOM_SMART_BOT_SECRET  | 企业微信智能机器人的 Secret |
-  | WECOM_SMART_BOT_CHAT_ID | 企业微信智能机器人推送目标会话，单聊填用户 userid，群聊填群聊 chatid。需机器人已在该会话中收到过至少一条消息 |
+  | WECOM_SMART_BOT_CHAT_ID | 企业微信智能机器人推送目标会话，单聊填用户 userid，群聊填群聊 chatid。支持多个目标用 `#` 分隔（如 `userA#userB`）逐条推送。需机器人已在该会话中收到过至少一条消息。单聊 userid 获取：机器人创建者为超级管理员时，运行 `python wecom_get_userids.py` 并让目标用户给机器人发一条消息即可打印其 userid |
   | WECOM_SMART_BOT_CHAT_TYPE | 企业微信智能机器人会话类型，1 单聊 / 2 群聊 / 0 兼容模式（默认，优先按群聊发送） |
   | PUSH_PLUS_MAX           | 设置pushplus最大推送账号详情数，默认为30，超过30个账号将只推送概要信息：多少个成功多少个失败。因为数量太多会导致内容过长无法推送。具体最大值请自行调试                              |
   | TELEGRAM_BOT_TOKEN      | 设置telegram机器人的token，同时需要配置TELEGRAM_CHAT_ID，否则不会执行推送                                                            |

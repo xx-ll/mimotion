@@ -156,14 +156,34 @@ class WeComSmartBot:
         }
         self.ws.send(json.dumps(payload))
 
-    def send_markdown(self, content):
-        """主动推送 markdown 消息"""
+    def send_markdown(self, content, chat_id=None):
+        """主动推送 markdown 消息
+
+        :param content: markdown 内容
+        :param chat_id: 推送目标会话，单聊填用户 userid，群聊填群聊 chatid；不传则使用构造时的 chat_id
+        """
+        target = chat_id or self.chat_id
         self._send_command("aibot_send_msg", {
-            "chatid": self.chat_id,
+            "chatid": target,
             "chat_type": self.chat_type,
             "msgtype": "markdown",
             "markdown": {"content": content}
         })
+
+    def ping(self):
+        """发送心跳保活"""
+        self._send_command("ping", {})
+
+    def recv(self, timeout=5):
+        """接收一条长连接消息，超时返回 None（用于监听回调/调试）"""
+        if not self.ws:
+            raise RuntimeError("尚未建立长连接，请先调用 connect()")
+        try:
+            self.ws.settimeout(timeout)
+            raw = self.ws.recv()
+            return raw
+        except Exception:
+            return None
 
     def close(self):
         """关闭长连接"""
@@ -181,6 +201,12 @@ def push_to_wecom_smart_bot(exec_results, summary, config: PushConfig):
         print("未配置 WECOM_SMART_BOT_ID/SECRET/CHAT_ID 跳过企业微信智能机器人推送")
         return
 
+    # 支持多个单聊 userid / 群聊 chatid，用 # 分隔逐条推送
+    chat_ids = [c.strip() for c in str(config.wecom_smart_bot_chat_id).split('#') if c.strip()]
+    if not chat_ids:
+        print("未配置有效的 WECOM_SMART_BOT_CHAT_ID 跳过企业微信智能机器人推送")
+        return
+
     content = f'## {summary}'
     if len(exec_results) >= config.push_plus_max:
         content += '\n- 账号数量过多，详细情况请前往github actions中查看'
@@ -193,11 +219,12 @@ def push_to_wecom_smart_bot(exec_results, summary, config: PushConfig):
                 content += f'\n- 账号：{exec_result["user"]}刷步数失败，失败原因：{exec_result["msg"]}'
 
     bot = WeComSmartBot(config.wecom_smart_bot_id, config.wecom_smart_bot_secret,
-                        config.wecom_smart_bot_chat_id, config.wecom_smart_bot_chat_type)
+                        chat_id=chat_ids[0], chat_type=config.wecom_smart_bot_chat_type)
     try:
         bot.connect()
-        bot.send_markdown(buildWeChatContent(f"{format_now()} 刷步数通知", content))
-        print("企业微信智能机器人推送完毕")
+        for cid in chat_ids:
+            bot.send_markdown(buildWeChatContent(f"{format_now()} 刷步数通知", content), chat_id=cid)
+        print(f"企业微信智能机器人推送完毕，共推送 {len(chat_ids)} 个会话")
     except Exception as e:
         print(f"企业微信智能机器人推送异常: {e}")
     finally:
