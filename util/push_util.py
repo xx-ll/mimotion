@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 
 import requests
@@ -135,40 +136,70 @@ class WeComSmartBot:
         self.ws = None
 
     def connect(self):
-        """建立长连接并完成订阅认证"""
+        """建立长连接并完成订阅认证，校验服务端响应"""
         try:
             from websocket import create_connection
         except ImportError:
             raise RuntimeError("缺少 websocket-client 依赖，请先执行 pip install -e .")
         self.ws = create_connection(self.WS_URL, timeout=15)
-        self._send_command("aibot_subscribe", {
+        req_id = self._send_command("aibot_subscribe", {
             "bot_id": self.bot_id,
             "secret": self.secret
         })
+        resp = self._recv_response(req_id, timeout=10)
+        if resp.get("errcode") != 0:
+            raise RuntimeError(f"订阅认证失败: errcode={resp.get('errcode')} errmsg={resp.get('errmsg')}")
 
     def _send_command(self, cmd, body):
         if not self.ws:
             raise RuntimeError("尚未建立长连接，请先调用 connect()")
+        req_id = str(uuid.uuid4())
         payload = {
             "cmd": cmd,
-            "headers": {"req_id": str(uuid.uuid4())},
+            "headers": {"req_id": req_id},
             "body": body
         }
         self.ws.send(json.dumps(payload))
+        return req_id
+
+    def _recv_response(self, req_id, timeout=5):
+        """接收与 req_id 匹配的服务端响应帧，超时返回 {}"""
+        if not self.ws:
+            return {}
+        self.ws.settimeout(timeout)
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                raw = self.ws.recv()
+            except Exception:
+                return {}
+            try:
+                msg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if msg.get("headers", {}).get("req_id") == req_id:
+                return msg
+        return {}
 
     def send_markdown(self, content, chat_id=None):
-        """主动推送 markdown 消息
+        """主动推送 markdown 消息，校验服务端响应
 
         :param content: markdown 内容
         :param chat_id: 推送目标会话，单聊填用户 userid，群聊填群聊 chatid；不传则使用构造时的 chat_id
+        :raises RuntimeError: 服务端返回 errcode != 0 或超时未收到响应
         """
         target = chat_id or self.chat_id
-        self._send_command("aibot_send_msg", {
+        req_id = self._send_command("aibot_send_msg", {
             "chatid": target,
             "chat_type": self.chat_type,
             "msgtype": "markdown",
             "markdown": {"content": content}
         })
+        resp = self._recv_response(req_id, timeout=10)
+        if not resp:
+            raise RuntimeError(f"发送消息超时未收到响应 (chatid={target})")
+        if resp.get("errcode") != 0:
+            raise RuntimeError(f"发送消息失败 (chatid={target}): errcode={resp.get('errcode')} errmsg={resp.get('errmsg')}")
 
     def ping(self):
         """发送心跳保活"""
@@ -220,11 +251,18 @@ def push_to_wecom_smart_bot(exec_results, summary, config: PushConfig):
 
     bot = WeComSmartBot(config.wecom_smart_bot_id, config.wecom_smart_bot_secret,
                         chat_id=chat_ids[0], chat_type=config.wecom_smart_bot_chat_type)
+    msg = buildWeChatContent(f"{format_now()} 刷步数通知", content)
     try:
         bot.connect()
+        print(f"企业微信智能机器人订阅成功，chat_type={config.wecom_smart_bot_chat_type}")
+        success_cnt = 0
         for cid in chat_ids:
-            bot.send_markdown(buildWeChatContent(f"{format_now()} 刷步数通知", content), chat_id=cid)
-        print(f"企业微信智能机器人推送完毕，共推送 {len(chat_ids)} 个会话")
+            try:
+                bot.send_markdown(msg, chat_id=cid)
+                success_cnt += 1
+            except Exception as e:
+                print(f"企业微信智能机器人推送失败 ({cid}): {e}")
+        print(f"企业微信智能机器人推送完毕，成功 {success_cnt}/{len(chat_ids)} 个会话")
     except Exception as e:
         print(f"企业微信智能机器人推送异常: {e}")
     finally:
