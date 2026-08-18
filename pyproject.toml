@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mimotion"
+version = "1.0.0"
+description = "小米运动/Zepp Life 刷步数脚本（含多通道推送）"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests==2.34.2",
+    "pytz==2026.3.post1",
+    "pycryptodome==3.23.0",
+    "python-dotenv==1.2.3",
+    "websocket-client==1.9.0",
+]
+
+[tool.setuptools]
+packages = []
