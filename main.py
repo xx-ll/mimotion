@@ -318,6 +318,10 @@ if __name__ == "__main__":
             "PUSH_PLUS_HOUR": os.environ.get("PUSH_PLUS_HOUR", ""),
             "PUSH_PLUS_MAX": os.environ.get("PUSH_PLUS_MAX", "30"),
             "PUSH_WECHAT_WEBHOOK_KEY": os.environ.get("PUSH_WECHAT_WEBHOOK_KEY", ""),
+            "WECOM_SMART_BOT_ID": os.environ.get("WECOM_SMART_BOT_ID", ""),
+            "WECOM_SMART_BOT_SECRET": os.environ.get("WECOM_SMART_BOT_SECRET", ""),
+            "WECOM_SMART_BOT_CHAT_ID": os.environ.get("WECOM_SMART_BOT_CHAT_ID", ""),
+            "WECOM_SMART_BOT_CHAT_TYPE": os.environ.get("WECOM_SMART_BOT_CHAT_TYPE", "0"),
             "TELEGRAM_BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
             "TELEGRAM_CHAT_ID": os.environ.get("TELEGRAM_CHAT_ID", ""),
             "SLEEP_GAP": os.environ.get("SLEEP_GAP", "5"),
@@ -334,6 +338,10 @@ if __name__ == "__main__":
         push_plus_hour=config.get('PUSH_PLUS_HOUR'),
         push_plus_max=get_int_value_default(config, 'PUSH_PLUS_MAX', 30),
         push_wechat_webhook_key=config.get('PUSH_WECHAT_WEBHOOK_KEY'),
+        wecom_smart_bot_id=config.get('WECOM_SMART_BOT_ID'),
+        wecom_smart_bot_secret=config.get('WECOM_SMART_BOT_SECRET'),
+        wecom_smart_bot_chat_id=config.get('WECOM_SMART_BOT_CHAT_ID'),
+        wecom_smart_bot_chat_type=config.get('WECOM_SMART_BOT_CHAT_TYPE'),
         telegram_bot_token=config.get('TELEGRAM_BOT_TOKEN'),
         telegram_chat_id=config.get('TELEGRAM_CHAT_ID')
     )

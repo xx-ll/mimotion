@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import requests
 from datetime import datetime
@@ -25,13 +26,21 @@ class PushConfig:
                  push_plus_max=30,
                  push_wechat_webhook_key=None,
                  telegram_bot_token=None,
-                 telegram_chat_id=None):
+                 telegram_chat_id=None,
+                 wecom_smart_bot_id=None,
+                 wecom_smart_bot_secret=None,
+                 wecom_smart_bot_chat_id=None,
+                 wecom_smart_bot_chat_type=0):
         self.push_plus_token = push_plus_token
         self.push_plus_hour = push_plus_hour
         self.push_plus_max = int(push_plus_max) if push_plus_max else 30
         self.push_wechat_webhook_key = push_wechat_webhook_key
         self.telegram_bot_token = telegram_bot_token
         self.telegram_chat_id = telegram_chat_id
+        self.wecom_smart_bot_id = wecom_smart_bot_id
+        self.wecom_smart_bot_secret = wecom_smart_bot_secret
+        self.wecom_smart_bot_chat_id = wecom_smart_bot_chat_id
+        self.wecom_smart_bot_chat_type = int(wecom_smart_bot_chat_type) if wecom_smart_bot_chat_type else 0
 
 
 def push_plus(token, title, content):
@@ -102,6 +111,99 @@ def buildWeChatContent(title, content) -> str:
     return f"""# {title}\n{content}"""
 
 
+class WeComSmartBot:
+    """企业微信智能机器人（长连接）主动推送客户端
+
+    文档：https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21661
+    流程：建立 WebSocket 长连接 -> aibot_subscribe 订阅认证 -> aibot_send_msg 主动推送消息
+    注意：需用户先在该会话中给机器人发送过至少一条消息，后续才能主动推送。
+    """
+
+    WS_URL = "wss://openws.work.weixin.qq.com"
+
+    def __init__(self, bot_id, secret, chat_id=None, chat_type=0):
+        """
+        :param bot_id: 智能机器人 BotID
+        :param secret: 智能机器人 Secret
+        :param chat_id: 推送目标会话，单聊填用户 userid，群聊填群聊 chatid
+        :param chat_type: 会话类型，1 单聊 / 2 群聊 / 0 兼容模式（默认，优先按群聊发送）
+        """
+        self.bot_id = bot_id
+        self.secret = secret
+        self.chat_id = chat_id
+        self.chat_type = chat_type
+        self.ws = None
+
+    def connect(self):
+        """建立长连接并完成订阅认证"""
+        try:
+            from websocket import create_connection
+        except ImportError:
+            raise RuntimeError("缺少 websocket-client 依赖，请先执行 pip install -e .")
+        self.ws = create_connection(self.WS_URL, timeout=15)
+        self._send_command("aibot_subscribe", {
+            "bot_id": self.bot_id,
+            "secret": self.secret
+        })
+
+    def _send_command(self, cmd, body):
+        if not self.ws:
+            raise RuntimeError("尚未建立长连接，请先调用 connect()")
+        payload = {
+            "cmd": cmd,
+            "headers": {"req_id": str(uuid.uuid4())},
+            "body": body
+        }
+        self.ws.send(json.dumps(payload))
+
+    def send_markdown(self, content):
+        """主动推送 markdown 消息"""
+        self._send_command("aibot_send_msg", {
+            "chatid": self.chat_id,
+            "chat_type": self.chat_type,
+            "msgtype": "markdown",
+            "markdown": {"content": content}
+        })
+
+    def close(self):
+        """关闭长连接"""
+        if self.ws:
+            try:
+                self.ws.close()
+            except Exception:
+                pass
+            self.ws = None
+
+
+def push_to_wecom_smart_bot(exec_results, summary, config: PushConfig):
+    """推送到企业微信智能机器人（长连接方式）"""
+    if not (config.wecom_smart_bot_id and config.wecom_smart_bot_secret and config.wecom_smart_bot_chat_id):
+        print("未配置 WECOM_SMART_BOT_ID/SECRET/CHAT_ID 跳过企业微信智能机器人推送")
+        return
+
+    content = f'## {summary}'
+    if len(exec_results) >= config.push_plus_max:
+        content += '\n- 账号数量过多，详细情况请前往github actions中查看'
+    else:
+        for exec_result in exec_results:
+            success = exec_result['success']
+            if success is not None and success is True:
+                content += f'\n- 账号：{exec_result["user"]}刷步数成功，接口返回：{exec_result["msg"]}'
+            else:
+                content += f'\n- 账号：{exec_result["user"]}刷步数失败，失败原因：{exec_result["msg"]}'
+
+    bot = WeComSmartBot(config.wecom_smart_bot_id, config.wecom_smart_bot_secret,
+                        config.wecom_smart_bot_chat_id, config.wecom_smart_bot_chat_type)
+    try:
+        bot.connect()
+        bot.send_markdown(buildWeChatContent(f"{format_now()} 刷步数通知", content))
+        print("企业微信智能机器人推送完毕")
+    except Exception as e:
+        print(f"企业微信智能机器人推送异常: {e}")
+    finally:
+        bot.close()
+
+
 def push_telegram_bot(bot_token, chat_id, content):
     """
     推送消息类型为html 需要在外部组装html content
@@ -141,6 +243,7 @@ def push_results(exec_results, summary, config: PushConfig):
         return
     push_to_push_plus(exec_results, summary, config)
     push_to_wechat_webhook(exec_results, summary, config)
+    push_to_wecom_smart_bot(exec_results, summary, config)
     push_to_telegram_bot(exec_results, summary, config)
 
 
