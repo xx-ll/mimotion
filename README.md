@@ -191,7 +191,7 @@
 
 - 当长时间没有使用或者忘记了配置，可以通过手动触发工作流来发送配置信息到企业微信通知中，或者telegram机器人，请务必配置在私有的企业微信或telegram群组中，避免密码等敏感信息泄露给别人
 - 步骤：
-  - 首先配置Secrets：`INSPECT_WECHAT_HOOK_KEY` 配置企业微信机器人的key，具体请参考企业微信机器人文档。
+  - 企业微信推送：配置Secrets `WECOM_SMART_BOT`，值为 JSON 字符串，格式：`{"id":"机器人的BotID","secret":"机器人的Secret","chat_id":"推送目标会话","chat_type":1}`。`chat_id` 单聊填用户 userid、群聊填群聊 chatid；`chat_type` 1 单聊 / 2 群聊 / 0 兼容模式。需机器人已在该会话中收到过至少一条消息。
   - telegram配置Secrets：`INSPECT_TELEGRAM_BOT_TOKEN`和`INSPECT_TELEGRAM_CHAT_ID` 配置机器人的token和聊天chatId，具体请参考TelegramBot文档。
   - 然后点击Actions，左侧选择 `提取配置信息` 手动运行它，运行成功后，将配置信息发送到企业微信或telegram中。企业微信或者telegram的推送自己按需选择，如果都不配置，请使用日志打印的方式。
 - 如果没有企业微信或telegram，可以配置Secrets: `INSPECT_AES_KEY` 注意是16位的字符串，请勿使用弱密码，避免被人猜到。

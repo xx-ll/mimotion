@@ -1,4 +1,5 @@
 # -*- coding: utf8 -*-
+import json
 import os
 
 from util import push_util
@@ -77,13 +78,35 @@ if __name__ == "__main__":
     else:
         print("未配置 INSPECT_AES_KEY 跳过配置信息打印")
 
-    # 推送到微信
-    wechat_push_key = os.environ.get("INSPECT_WECHAT_HOOK_KEY")
-    if wechat_push_key is None or wechat_push_key == "":
-        print("未配置 INSPECT_WECHAT_HOOK_KEY 无法推送配置信息")
+    # 推送到企业微信智能机器人（支持 WECOM_SMART_BOT 单 JSON 字段，兼容旧 4 项独立字段）
+    wecom_bot_id = os.environ.get("WECOM_SMART_BOT_ID")
+    wecom_bot_secret = os.environ.get("WECOM_SMART_BOT_SECRET")
+    wecom_bot_chat_id = os.environ.get("WECOM_SMART_BOT_CHAT_ID")
+    wecom_bot_chat_type = os.environ.get("WECOM_SMART_BOT_CHAT_TYPE", "0")
+    wecom_bot_json = os.environ.get("WECOM_SMART_BOT")
+    if wecom_bot_json:
+        try:
+            smart_bot = json.loads(wecom_bot_json)
+            wecom_bot_id = smart_bot.get('id') or wecom_bot_id
+            wecom_bot_secret = smart_bot.get('secret') or wecom_bot_secret
+            wecom_bot_chat_id = smart_bot.get('chat_id') or wecom_bot_chat_id
+            if smart_bot.get('chat_type') is not None:
+                wecom_bot_chat_type = smart_bot.get('chat_type') or wecom_bot_chat_type
+        except (json.JSONDecodeError, TypeError):
+            print("WECOM_SMART_BOT 配置不是合法的JSON，已忽略")
+    if wecom_bot_id is None or wecom_bot_id == "" or wecom_bot_secret is None or wecom_bot_secret == "" or wecom_bot_chat_id is None or wecom_bot_chat_id == "":
+        print("未配置 WECOM_SMART_BOT_ID/SECRET/CHAT_ID 无法推送配置信息")
     else:
-        push_util.push_wechat_webhook(wechat_push_key, "提取配置信息",
-                                      build_inspect_configs_content(config, aes_key, pat))
+        bot = push_util.WeComSmartBot(wecom_bot_id, wecom_bot_secret,
+                                      chat_id=wecom_bot_chat_id, chat_type=int(wecom_bot_chat_type) if wecom_bot_chat_type else 0)
+        try:
+            bot.connect()
+            bot.send_markdown(build_inspect_configs_content(config, aes_key, pat))
+            print("企业微信智能机器人推送配置信息完毕")
+        except Exception as e:
+            print(f"企业微信智能机器人推送配置信息异常: {e}")
+        finally:
+            bot.close()
 
     # 推送到telegram
     telegram_bot_token = os.environ.get("INSPECT_TELEGRAM_BOT_TOKEN")
